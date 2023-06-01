@@ -7,7 +7,6 @@ HOST = socket.gethostname()
 PORT = 1500
 wordsList = ["KUKURYDZA", "SAMOLOCIK", "OCZYSZCZALNIA"] # only one-word expressions supported 
 word = ""
-guessed_word = ""
 tried_letters = set([])
 tries = 10
 
@@ -20,7 +19,7 @@ WIN_MSG = """
 ***************************
 *  |¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯|  *
 *  |     ZWYCIĘSTWO    |  *
-*  |     w {} próbach  |  *
+*  |      wynik: {}     |  *
 *  |___________________|  *
 ***************************
 """
@@ -50,33 +49,48 @@ LOSE_MSG = """
 def main():
 	print(HOST)
 	message = ""
+	
 	with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
 		s.bind((HOST, PORT))
 		s.listen()
-		conn, addr = s.accept()
-		with conn:
-			print(f"Connected by {addr}")
-			initGame()
-			conn.sendall(invitationMessage(addr).encode())
-			global tries
-			while tries > 0:
-				data = conn.recv(1024).decode().upper()
-				if not data:
-					break
-				message = feedback(data, word)
-
-				conn.sendall(message.format(tries).encode())
-				conn.sendall(guessedWord2String().encode())
-				if message == BAD_GUESS_MSG:
-					tries += -1
-			conn.sendall(LOSE_MSG.encode())
-			
+		try:
+			while True:
+				conn, addr = s.accept()
+				with conn:
+					print(f"Connected by {addr}")
+					initGame()
+					conn.sendall(invitationMessage(addr).encode())
 					
+					global tries
+					try:
+						while tries > 0:
+							data = conn.recv(1024).decode().upper()
+							if not data:
+								break
+							message = feedback(data, word)
+
+							if message == BAD_GUESS_MSG:
+								tries += -1
+
+							if tries == 0:
+								break
+							else:
+								conn.sendall((message.format(tries) + guessedWord2String() + '\n').encode())
+						conn.sendall(LOSE_MSG.encode())
+						
+					except KeyboardInterrupt:
+						print ("Keyboard Interruptions")
+						s.close()
+						
+		except KeyboardInterrupt:
+				print ("Keyboard Interruption")
+				s.close()
 			
 def feedback(data, word):
+	output = ""
+	
 	if len(data) == 1:
 		global tried_letters
-		output = ""
 		if data in tried_letters:
 			output = LETTER_REPEAT_MSG
 		elif data in word:
@@ -88,18 +102,24 @@ def feedback(data, word):
 
 
 	else:
-		if data == WORD:
+		if data == word:
 			output = WIN_MSG	
 		else:
 			output = BAD_GUESS_MSG	
 	
 	return output
 
+
+
 def initGame():
 	global word
 	word = choice(wordsList)
-	global guessed_word
-	guessed_word = ['_'] * len(word)
+	
+	global tried_letters
+	tried_letters = set([])
+	
+	global tries
+	tries = 10
 
 	
 def invitationMessage(addr):
@@ -111,11 +131,18 @@ def invitationMessage(addr):
 The word: {guessedWord2String()}
 """
 
+
 def guessedWord2String():
 	string = ""
-	for char in guessed_word:
-		string += char
+	for char in word:
+		if char in tried_letters:
+			string += char
+		else:
+			string += '_'
 		string += ' '
 	return string
 
-main()
+
+
+if __name__ == "__main__":
+	main()

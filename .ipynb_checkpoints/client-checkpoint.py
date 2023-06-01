@@ -8,23 +8,36 @@ PORT = 1500
 iter = 0
 
 def client():
-    print(HOST)
-    client_socket = socket.socket() #Tworzenie socketa
-    client_socket.connect((HOST, PORT))
-    while True:
-        info = client_socket.recv(1024).decode() #Odczyt hasła 
-        print(info)
-        if "Przegrales!" in info:
-            break
-        elif "Wygrales!" in info:
-            break
+	print(HOST)
+	
+	with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+		s.connect((HOST, PORT))
+		try:
+			while True:
+				info = s.recv(1024).decode() #Odczyt hasła 
+				if info:
+					print(info)
+					if "P R Z E G R A N A" in info:
+						break
+					elif "ZWYCIĘSTWO" in info:
+						break
 
-        guess = input(" -> ")
-        client_socket.send(guess.upper().encode())
-    client_socket.close()
+					guess = input(" -> ")
+					s.send(guess.upper().encode())
+			s.close()
 
+		except KeyboardInterrupt:
+			print("Closing connection with server")
+			s.close()
         
-
-client()            
+		
+		
+		
+		
+		
+		
+		
+if __name__ == "__main__":
+	client()            
         
     
