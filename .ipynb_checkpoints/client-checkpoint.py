@@ -2,19 +2,21 @@ import socket
 from sys import argv
 from random import choice
 
-#HOST = "127.0.0.1"  # Standard loopback interface address (localhost)
-HOST = socket.gethostname()
-PORT = 1500
-iter = 0
 
-def client():
-	print(HOST)
+def main():
+	# adres serwera z argumentów
+	HOST = argv[1]
+	PORT = int(argv[2])
 	
+	# tworzenie gniazda
 	with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
 		s.connect((HOST, PORT))
 		try:
 			while True:
-				info = s.recv(1024).decode() #Odczyt hasła 
+				# odbieranie danych
+				info = s.recv(1024).decode() #Odczyt hasła
+				
+				# obsluga danych jesli istnieja z ewentualnym rozlaczeniem 				
 				if info:
 					print(info)
 					if "P R Z E G R A N A" in info:
@@ -31,13 +33,12 @@ def client():
 			s.close()
         
 		
-		
-		
-		
-		
-		
+
 		
 if __name__ == "__main__":
-	client()            
+	if len(argv) == 3:
+		main()
+	else:
+		print("Give two arguments: ip and port")
         
     

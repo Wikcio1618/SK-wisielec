@@ -1,13 +1,13 @@
 import socket
-from sys import argv
 from random import choice
+import threading
 
-#HOST = "127.0.0.1"  # Standard loopback interface address (localhost)
-HOST = socket.gethostname()
+# adres serwera
+HOST = "127.0.0.1"
 PORT = 1500
 wordsList = ["KUKURYDZA", "SAMOLOCIK", "OCZYSZCZALNIA"] # only one-word expressions supported 
 word = ""
-tried_letters = set([])
+tried_letters = set([]) # zbior liter ktore juz byly próbowanie
 tries = 10
 
 LETTER_REPEAT_MSG ="""
@@ -50,42 +50,88 @@ def main():
 	print(HOST)
 	message = ""
 	
-	with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-		s.bind((HOST, PORT))
-		s.listen()
+	# tworzenie gniazda
+	s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+	# bindowanie adresu	
+	s.bind((HOST, PORT))
+	# nasłuchiwanie
+	s.listen()
+	print("Server is running. Waiting for connections...")
+
+	# Create a shutdown event to signal the server to stop
+	global shutdown_event
+	shutdown_event = threading.Event()
+
+	# Start accepting connections in a separate thread
+	connection_thread = threading.Thread(target=accept_connections, args=(s,))
+	connection_thread.start()
+
+	try:
+		# Wait for the user to interrupt the server with Ctrl+C
+		while True:
+			pass
+
+	except KeyboardInterrupt:
+        # Set the shutdown event to signal the server to stop
+		shutdown_event.set()
+
+        # Wait for the connection thread to exit
+		connection_thread.join()
+
+# funkcja do czekania na połączenia
+def accept_connections(s):
+	while not shutdown_event.is_set():
+		global addr
+		# oczekiwanie na przyjecie połączenia
+		conn, addr = s.accept()
 		try:
-			while True:
-				conn, addr = s.accept()
-				with conn:
-					print(f"Connected by {addr}")
-					initGame()
-					conn.sendall(invitationMessage(addr).encode())
-					
-					global tries
-					try:
-						while tries > 0:
-							data = conn.recv(1024).decode().upper()
-							if not data:
-								break
-							message = feedback(data, word)
-
-							if message == BAD_GUESS_MSG:
-								tries += -1
-
-							if tries == 0:
-								break
-							else:
-								conn.sendall((message.format(tries) + guessedWord2String() + '\n').encode())
-						conn.sendall(LOSE_MSG.encode())
-						
-					except KeyboardInterrupt:
-						print ("Keyboard Interruptions")
-						s.close()
-						
-		except KeyboardInterrupt:
-				print ("Keyboard Interruption")
-				s.close()
+			handleClient(conn)
 			
+		except KeyboardInterrupt:
+			# Handle Keyboard Interrupt (Ctrl+C) from the client
+			print("Client disconnected.")
+			s.close()
+
+		except ConnectionResetError:
+			# Handle connection reset by the client
+			print("Client connection reset.")
+			s.close()
+
+		except ConnectionAbortedError:
+			# Handle connection aborted by the client
+			print("Client connection aborted.")
+			s.close()
+
+		except Exception as e:
+			# Handle other exceptions
+			print("Exception occurred:", str(e))
+			s.close()
+
+# funkcja do obsługiwania połączonego clienta	
+def handleClient(conn):
+	with conn:
+		print(f"Connected by {addr}")
+		initGame()
+		# sendall wysyła dane. klient musi je odebrac
+		conn.sendall(invitationMessage(addr).encode())
+
+		global tries
+		while tries > 0:
+			data = conn.recv(1024).decode().upper()
+			if not data:
+				break
+			message = feedback(data, word)
+
+			if message == BAD_GUESS_MSG:
+				tries += -1
+
+			if tries == 0:
+				break
+			else:
+				conn.sendall((message.format(tries) + guessedWord2String() + '\n').encode())
+		conn.sendall(LOSE_MSG.encode())
+
+# funckja do zwracania odpowiedzi na podstawie inputu clienta
 def feedback(data, word):
 	output = ""
 	
@@ -103,14 +149,14 @@ def feedback(data, word):
 
 	else:
 		if data == word:
-			output = WIN_MSG	
+			output = WIN_MSG
 		else:
-			output = BAD_GUESS_MSG	
+			output = BAD_GUESS_MSG
 	
 	return output
 
 
-
+# inicjuje zmienne
 def initGame():
 	global word
 	word = choice(wordsList)
